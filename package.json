@@ -1,0 +1,34 @@
+{
+  "name": "draftmark",
+  "version": "0.1.0",
+  "description": "CLI for Draftmark",
+  "type": "module",
+  "bin": {
+    "dm": "dist/cli.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "prepublishOnly": "npm run build"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "keywords": [
+    "draftmark",
+    "markdown",
+    "collaboration",
+    "cli"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "commander": "^13.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.13.14",
+    "typescript": "^5.8.2"
+  }
+}
