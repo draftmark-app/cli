@@ -1,5 +1,6 @@
-import { readFile, writeFile } from "node:fs/promises";
+import { readFile, writeFile, mkdir } from "node:fs/promises";
 import { join } from "node:path";
+import { homedir } from "node:os";
 
 const CONFIG_FILE = ".draftmark.json";
 
@@ -9,6 +10,15 @@ export interface DraftmarkEntry {
   magic_token?: string;
   url: string;
 }
+
+export interface GlobalConfig {
+  api_key?: string;
+  magic_token?: string;
+}
+
+// ---------------------------------------------------------------------------
+// Local config (.draftmark.json in cwd)
+// ---------------------------------------------------------------------------
 
 function configPath(): string {
   return join(process.cwd(), CONFIG_FILE);
@@ -39,25 +49,77 @@ export async function getLastEntry(): Promise<DraftmarkEntry | null> {
   return entries.length > 0 ? entries[entries.length - 1] : null;
 }
 
+// ---------------------------------------------------------------------------
+// Global config (~/.config/draftmark/config.json)
+// ---------------------------------------------------------------------------
+
+function globalConfigDir(): string {
+  return join(homedir(), ".config", "draftmark");
+}
+
+function globalConfigPath(): string {
+  return join(globalConfigDir(), "config.json");
+}
+
+export async function readGlobalConfig(): Promise<GlobalConfig> {
+  try {
+    const raw = await readFile(globalConfigPath(), "utf-8");
+    return JSON.parse(raw);
+  } catch {
+    return {};
+  }
+}
+
+export async function writeGlobalConfig(config: GlobalConfig): Promise<void> {
+  await mkdir(globalConfigDir(), { recursive: true });
+  await writeFile(globalConfigPath(), JSON.stringify(config, null, 2) + "\n");
+}
+
+// ---------------------------------------------------------------------------
+// Resolution helpers (flag > env > local config > global config)
+// ---------------------------------------------------------------------------
+
 export function resolveSlug(slugArg: string | undefined, entry: DraftmarkEntry | null): string {
   if (slugArg) return slugArg;
   if (entry?.slug) return entry.slug;
   throw new Error("No slug provided and no .draftmark.json found in current directory.");
 }
 
-export function resolveApiKey(opts: { apiKey?: string }, entry: DraftmarkEntry | null): string {
+export function resolveApiKey(
+  opts: { apiKey?: string },
+  entry: DraftmarkEntry | null,
+  global?: GlobalConfig
+): string {
   if (opts.apiKey) return opts.apiKey;
   if (process.env.DM_API_KEY) return process.env.DM_API_KEY;
   if (entry?.api_key) return entry.api_key;
+  if (global?.api_key) return global.api_key;
   throw new Error(
-    "No API key found. Provide --api-key, set DM_API_KEY, or run from a directory with .draftmark.json."
+    "No API key found. Provide --api-key, set DM_API_KEY, run from a directory with .draftmark.json, or run `dm login`."
   );
 }
 
-export function resolveMagicToken(opts: { magicToken?: string }, entry: DraftmarkEntry | null): string {
+export function resolveApiKeyOptional(
+  opts: { apiKey?: string },
+  entry: DraftmarkEntry | null,
+  global?: GlobalConfig
+): string | undefined {
+  if (opts.apiKey) return opts.apiKey;
+  if (process.env.DM_API_KEY) return process.env.DM_API_KEY;
+  if (entry?.api_key) return entry.api_key;
+  if (global?.api_key) return global.api_key;
+  return undefined;
+}
+
+export function resolveMagicToken(
+  opts: { magicToken?: string },
+  entry: DraftmarkEntry | null,
+  global?: GlobalConfig
+): string {
   if (opts.magicToken) return opts.magicToken;
   if (process.env.DM_MAGIC_TOKEN) return process.env.DM_MAGIC_TOKEN;
   if (entry?.magic_token) return entry.magic_token;
+  if (global?.magic_token) return global.magic_token;
   throw new Error(
     "No magic token found. Provide --magic-token, set DM_MAGIC_TOKEN, or ensure .draftmark.json has magic_token."
   );

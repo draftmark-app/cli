@@ -6,9 +6,12 @@ import { api } from "./api.js";
 import {
   appendConfig,
   getLastEntry,
+  readGlobalConfig,
   resolveApiKey,
+  resolveApiKeyOptional,
   resolveMagicToken,
   resolveSlug,
+  writeGlobalConfig,
 } from "./config.js";
 import {
   bold,
@@ -43,6 +46,7 @@ program
   .option("--title <title>", "Document title")
   .option("--expected-reviews <n>", "Number of expected reviews", parseInt)
   .option("--review-deadline <date>", "Review deadline (ISO date)")
+  .option("--api-key <key>", "Account API key (required for private docs)")
   .option("--json", "Output raw JSON response")
   .action(async (file: string, opts) => {
     info("Creating document...");
@@ -54,6 +58,13 @@ program
       error(`Could not read file: ${file}`);
       process.exit(1);
     }
+
+    // Resolve API key (required for private, optional for public)
+    const entry = await getLastEntry();
+    const global = await readGlobalConfig();
+    const apiKey = opts.private
+      ? resolveApiKey(opts, entry, global)
+      : resolveApiKeyOptional(opts, entry, global);
 
     const body: Record<string, unknown> = { content };
     if (opts.title) body.title = opts.title;
@@ -69,6 +80,7 @@ program
     }>("/docs", {
       method: "POST",
       body,
+      apiKey,
     });
 
     if (!res.ok) {
@@ -92,6 +104,10 @@ program
     } else {
       success("Document created\n");
       process.stdout.write(`${label("URL", cyan(shareUrl))}\n`);
+      if (opts.private) {
+        const privateUrl = `${shareUrl}?token=${doc.magic_token}`;
+        process.stdout.write(`${label("Private URL", cyan(privateUrl))}\n`);
+      }
       process.stdout.write(`${label("Slug", doc.slug)}\n`);
       process.stdout.write(`${label("Magic Token", doc.magic_token)}\n`);
       process.stdout.write(`${label("API Key", doc.api_key)}\n`);
@@ -110,8 +126,9 @@ program
   .option("--json", "Output raw JSON response")
   .action(async (slugArg: string | undefined, opts) => {
     const entry = await getLastEntry();
+    const global = await readGlobalConfig();
     const slug = resolveSlug(slugArg, entry);
-    const apiKey = resolveApiKey(opts, entry);
+    const apiKey = resolveApiKey(opts, entry, global);
 
     const res = await api<Record<string, unknown>>(`/docs/${slug}`, {
       apiKey,
@@ -163,8 +180,9 @@ program
   .option("--json", "Output raw JSON response")
   .action(async (slugArg: string | undefined, opts) => {
     const entry = await getLastEntry();
+    const global = await readGlobalConfig();
     const slug = resolveSlug(slugArg, entry);
-    const apiKey = resolveApiKey(opts, entry);
+    const apiKey = resolveApiKey(opts, entry, global);
 
     const params: Record<string, string> = {};
     if (opts.status) params.status = opts.status;
@@ -210,6 +228,7 @@ program
   .option("--json", "Output raw JSON response")
   .action(async (first: string, second: string | undefined, opts) => {
     const entry = await getLastEntry();
+    const global = await readGlobalConfig();
 
     // If only one positional arg, it's the body and slug comes from config
     let slug: string;
@@ -222,7 +241,7 @@ program
       body = second;
     }
 
-    const apiKey = resolveApiKey(opts, entry);
+    const apiKey = resolveApiKey(opts, entry, global);
 
     const payload: Record<string, unknown> = { body };
     if (opts.author) payload.author = opts.author;
@@ -268,8 +287,9 @@ program
   .option("--json", "Output raw JSON response")
   .action(async (slugArg: string | undefined, opts) => {
     const entry = await getLastEntry();
+    const global = await readGlobalConfig();
     const slug = resolveSlug(slugArg, entry);
-    const apiKey = resolveApiKey(opts, entry);
+    const apiKey = resolveApiKey(opts, entry, global);
 
     const payload: Record<string, unknown> = {};
     if (opts.name) payload.reviewer_name = opts.name;
@@ -309,8 +329,9 @@ program
   .option("--api-key <key>", "API key for authentication")
   .action(async (slugArg: string | undefined, opts) => {
     const entry = await getLastEntry();
+    const global = await readGlobalConfig();
     const slug = resolveSlug(slugArg, entry);
-    const apiKey = resolveApiKey(opts, entry);
+    const apiKey = resolveApiKey(opts, entry, global);
 
     const res = await api<string>(`/docs/${slug}`, {
       apiKey,
@@ -336,8 +357,9 @@ program
   .option("--json", "Output raw JSON response")
   .action(async (slugArg: string | undefined, opts) => {
     const entry = await getLastEntry();
+    const global = await readGlobalConfig();
     const slug = resolveSlug(slugArg, entry);
-    const magicToken = resolveMagicToken(opts, entry);
+    const magicToken = resolveMagicToken(opts, entry, global);
 
     const res = await api(`/docs/${slug}`, {
       method: "PATCH",
@@ -369,8 +391,9 @@ program
   .option("--json", "Output raw JSON response")
   .action(async (slugArg: string | undefined, opts) => {
     const entry = await getLastEntry();
+    const global = await readGlobalConfig();
     const slug = resolveSlug(slugArg, entry);
-    const magicToken = resolveMagicToken(opts, entry);
+    const magicToken = resolveMagicToken(opts, entry, global);
 
     const res = await api(`/docs/${slug}`, {
       method: "PATCH",
@@ -408,8 +431,9 @@ program
     }
 
     const entry = await getLastEntry();
+    const global = await readGlobalConfig();
     const slug = resolveSlug(slugArg, entry);
-    const magicToken = resolveMagicToken(opts, entry);
+    const magicToken = resolveMagicToken(opts, entry, global);
 
     const res = await api(`/docs/${slug}`, {
       method: "DELETE",
@@ -427,6 +451,81 @@ program
     } else {
       success("Document deleted.");
     }
+  });
+
+// ---------------------------------------------------------------------------
+// dm login
+// ---------------------------------------------------------------------------
+program
+  .command("login")
+  .description("Save account credentials globally (~/.config/draftmark/config.json)")
+  .option("--api-key <key>", "Account API key")
+  .option("--magic-token <token>", "Default magic token")
+  .action(async (opts) => {
+    if (!opts.apiKey && !opts.magicToken) {
+      error("Provide at least one of --api-key or --magic-token.");
+      process.exit(1);
+    }
+
+    const existing = await readGlobalConfig();
+    const updated = { ...existing };
+    if (opts.apiKey) updated.api_key = opts.apiKey;
+    if (opts.magicToken) updated.magic_token = opts.magicToken;
+
+    await writeGlobalConfig(updated);
+    success("Credentials saved to ~/.config/draftmark/config.json");
+  });
+
+// ---------------------------------------------------------------------------
+// dm logout
+// ---------------------------------------------------------------------------
+program
+  .command("logout")
+  .description("Remove saved global credentials")
+  .action(async () => {
+    await writeGlobalConfig({});
+    success("Global credentials removed.");
+  });
+
+// ---------------------------------------------------------------------------
+// dm whoami
+// ---------------------------------------------------------------------------
+program
+  .command("whoami")
+  .description("Show current authentication sources")
+  .action(async () => {
+    const entry = await getLastEntry();
+    const global = await readGlobalConfig();
+
+    process.stdout.write("\n");
+
+    // Global config
+    if (global.api_key) {
+      process.stdout.write(
+        `${label("Global API Key", green(global.api_key.slice(0, 12) + "..."))}\n`
+      );
+    } else {
+      process.stdout.write(`${label("Global API Key", dim("not set"))}\n`);
+    }
+
+    // Env vars
+    if (process.env.DM_API_KEY) {
+      process.stdout.write(`${label("DM_API_KEY env", green("set"))}\n`);
+    }
+    if (process.env.DM_MAGIC_TOKEN) {
+      process.stdout.write(`${label("DM_MAGIC_TOKEN env", green("set"))}\n`);
+    }
+
+    // Local config
+    if (entry) {
+      process.stdout.write(
+        `${label("Local config", green(`.draftmark.json (${entry.slug})`))}\n`
+      );
+    } else {
+      process.stdout.write(`${label("Local config", dim("no .draftmark.json"))}\n`);
+    }
+
+    process.stdout.write("\n");
   });
 
 program.parse();
