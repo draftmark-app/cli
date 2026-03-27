@@ -9,6 +9,7 @@ export interface DraftmarkEntry {
   api_key: string;
   magic_token?: string;
   url: string;
+  author_type?: string;
 }
 
 export interface GlobalConfig {
@@ -125,6 +126,27 @@ export function resolveMagicToken(
   );
 }
 
+// ---------------------------------------------------------------------------
+// Base URL resolution
+// ---------------------------------------------------------------------------
+
+let baseUrlOverride: string | undefined;
+
+export function setBaseUrl(url: string): void {
+  baseUrlOverride = url;
+}
+
 export function getBaseUrl(): string {
-  return process.env.DM_BASE_URL || "https://draftmark.app/api/v1";
+  return baseUrlOverride || process.env.DM_BASE_URL || "https://draftmark.app/api/v1";
+}
+
+export function getShareBaseUrl(): string {
+  const apiBase = getBaseUrl();
+  // Strip /api/v1 suffix to get the site origin
+  try {
+    const url = new URL(apiBase);
+    return `${url.protocol}//${url.host}`;
+  } catch {
+    return "https://draftmark.app";
+  }
 }
