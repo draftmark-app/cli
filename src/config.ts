@@ -112,6 +112,28 @@ export function resolveApiKeyOptional(
   return undefined;
 }
 
+/**
+ * Resolve an account-level API key (acct_...) for operations that require
+ * account auth (e.g. creating private docs). Prefers account keys over
+ * doc-level keys: flag → env → global config (acct_) → local config.
+ */
+export function resolveAccountApiKey(
+  opts: { apiKey?: string },
+  entry: DraftmarkEntry | null,
+  global?: GlobalConfig
+): string {
+  // Explicit flag always wins
+  if (opts.apiKey) return opts.apiKey;
+  // Env var — user controls what they put here
+  if (process.env.DM_API_KEY) return process.env.DM_API_KEY;
+  // Global config first (likely acct_...), then local (likely key_...)
+  if (global?.api_key) return global.api_key;
+  if (entry?.api_key) return entry.api_key;
+  throw new Error(
+    "No account API key found. Provide --api-key, set DM_API_KEY, or run `dm login --api-key acct_...`."
+  );
+}
+
 export function resolveMagicToken(
   opts: { magicToken?: string },
   entry: DraftmarkEntry | null,

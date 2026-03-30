@@ -12,6 +12,7 @@ import {
   getShareBaseUrl,
   readConfig,
   readGlobalConfig,
+  resolveAccountApiKey,
   resolveApiKey,
   resolveApiKeyOptional,
   resolveMagicToken,
@@ -118,7 +119,7 @@ const program = new Command();
 program
   .name("dm")
   .description("CLI for Draftmark — markdown sharing for async collaboration")
-  .version("0.2.0")
+  .version("0.2.1")
   .option("-q, --quiet", "Suppress all stderr output")
   .option("--base-url <url>", "Override API base URL (default: https://draftmark.app/api/v1)");
 
@@ -149,11 +150,11 @@ program
 
     const content = await readContentFromFileOrStdin(file);
 
-    // Resolve API key (required for private, optional for public)
+    // Resolve API key: private docs need an account key (acct_...), public docs are optional
     const entry = await getLastEntry();
     const global = await readGlobalConfig();
     const apiKey = opts.private
-      ? resolveApiKey(opts, entry, global)
+      ? resolveAccountApiKey(opts, entry, global)
       : resolveApiKeyOptional(opts, entry, global);
 
     const body: Record<string, unknown> = { content };
@@ -782,21 +783,28 @@ program
     const global = await readGlobalConfig();
     const entry = entries.length > 0 ? entries[entries.length - 1] : null;
 
+    const envKey = process.env.DM_API_KEY;
+    const localKey = entry?.api_key;
+    const globalKey = global.api_key;
+
     const resolved = {
       base_url: getBaseUrl(),
       share_base_url: getShareBaseUrl(),
-      api_key: {
+      account_api_key: {
         source: (() => {
-          if (process.env.DM_API_KEY) return "env (DM_API_KEY)";
-          if (entry?.api_key) return ".draftmark.json";
-          if (global.api_key) return "~/.config/draftmark/config.json";
+          if (envKey) return "env (DM_API_KEY)";
+          if (globalKey) return "~/.config/draftmark/config.json";
+          if (localKey) return ".draftmark.json";
           return null;
         })(),
         value: (() => {
-          const key = process.env.DM_API_KEY || entry?.api_key || global.api_key;
+          const key = envKey || globalKey || localKey;
           return key ? key.slice(0, 12) + "..." : null;
         })(),
       },
+      doc_api_key: localKey
+        ? { source: ".draftmark.json", value: localKey.slice(0, 12) + "..." }
+        : null,
       magic_token: {
         source: (() => {
           if (process.env.DM_MAGIC_TOKEN) return "env (DM_MAGIC_TOKEN)";
@@ -818,8 +826,13 @@ program
       process.stdout.write(`${label("Share Base URL", resolved.share_base_url)}\n`);
       process.stdout.write("\n");
       process.stdout.write(
-        `${label("API Key", resolved.api_key.value ? `${green(resolved.api_key.value)} ${dim(`(${resolved.api_key.source})`)}` : dim("not set"))}\n`
+        `${label("Account API Key", resolved.account_api_key.value ? `${green(resolved.account_api_key.value)} ${dim(`(${resolved.account_api_key.source})`)}` : dim("not set"))}\n`
       );
+      if (resolved.doc_api_key) {
+        process.stdout.write(
+          `${label("Doc API Key", `${dim(resolved.doc_api_key.value)} ${dim(`(${resolved.doc_api_key.source})`)}`)} \n`
+        );
+      }
       process.stdout.write(
         `${label("Magic Token", resolved.magic_token.set ? `${green("set")} ${dim(`(${resolved.magic_token.source})`)}` : dim("not set"))}\n`
       );
