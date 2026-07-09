@@ -88,7 +88,8 @@ dm close
 | Command | Description |
 |---------|-------------|
 | `dm comments [slug]` | List comments |
-| `dm comment [slug] <body>` | Add a comment |
+| `dm comment [slug] <body>` | Add a comment (`--line`, `--selection`, `--parent`) |
+| `dm comment-delete [slug] <commentId>` | Delete a comment (requires `--confirm`) |
 | `dm react [slug] <emoji>` | Add a reaction |
 | `dm review [slug]` | Mark document as reviewed |
 

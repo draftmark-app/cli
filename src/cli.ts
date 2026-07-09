@@ -441,6 +441,53 @@ program
   });
 
 // ---------------------------------------------------------------------------
+// dm comment-delete [slug] <commentId>
+// ---------------------------------------------------------------------------
+program
+  .command("comment-delete")
+  .description("Delete a comment (and its replies)")
+  .argument("[slug]", "Document slug (optional if .draftmark.json exists)")
+  .argument("<commentId>", "Comment id to delete")
+  .option("--api-key <key>", "API key for authentication")
+  .option("--confirm", "Confirm deletion")
+  .option("--json", "Output raw JSON response")
+  .action(async (first: string, second: string | undefined, opts) => {
+    if (!opts.confirm) {
+      error("Deletion requires --confirm flag.");
+      process.exit(EXIT_ERROR);
+    }
+
+    const entry = await getLastEntry();
+    const global = await readGlobalConfig();
+
+    // If only one positional arg, it's the commentId and slug comes from config
+    let slug: string;
+    let commentId: string;
+    if (second === undefined) {
+      slug = resolveSlug(undefined, entry);
+      commentId = first;
+    } else {
+      slug = first;
+      commentId = second;
+    }
+
+    const apiKey = resolveApiKey(opts, entry, global);
+
+    const res = await api(`/docs/${slug}/comments/${commentId}`, {
+      method: "DELETE",
+      apiKey,
+    });
+
+    if (!res.ok) fail("Failed to delete comment", res.status, res.data);
+
+    if (opts.json) {
+      printJson(res.data);
+    } else {
+      success("Comment deleted.");
+    }
+  });
+
+// ---------------------------------------------------------------------------
 // dm review [slug]
 // ---------------------------------------------------------------------------
 program
