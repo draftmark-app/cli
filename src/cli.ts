@@ -386,6 +386,7 @@ program
   .option("--author-type <type>", "Author type (e.g. agent)")
   .option("--line <n>", "Line number anchor", parseInt)
   .option("--selection <text>", "Selection text anchor")
+  .option("--parent <id>", "Reply to a comment by id (threads under it)")
   .option("--json", "Output raw JSON response")
   .action(async (first: string, second: string | undefined, opts) => {
     const entry = await getLastEntry();
@@ -413,12 +414,16 @@ program
       payload.author_type = entry.author_type;
     }
     if (opts.line) {
+      // anchor_ref is an integer line number
       payload.anchor_type = "line";
-      payload.anchor_ref = String(opts.line);
+      payload.anchor_ref = opts.line;
     } else if (opts.selection) {
+      // the highlighted quote goes in anchor_text, not anchor_ref (an int column)
       payload.anchor_type = "selection";
-      payload.anchor_ref = opts.selection;
+      payload.anchor_text = opts.selection;
     }
+    // Thread this comment under an existing one (a true nested reply)
+    if (opts.parent) payload.parent_id = opts.parent;
 
     const res = await api(`/docs/${slug}/comments`, {
       method: "POST",
@@ -432,6 +437,53 @@ program
       printJson(res.data);
     } else {
       success("Comment added.");
+    }
+  });
+
+// ---------------------------------------------------------------------------
+// dm comment-delete [slug] <commentId>
+// ---------------------------------------------------------------------------
+program
+  .command("comment-delete")
+  .description("Delete a comment (and its replies)")
+  .argument("[slug]", "Document slug (optional if .draftmark.json exists)")
+  .argument("<commentId>", "Comment id to delete")
+  .option("--api-key <key>", "API key for authentication")
+  .option("--confirm", "Confirm deletion")
+  .option("--json", "Output raw JSON response")
+  .action(async (first: string, second: string | undefined, opts) => {
+    if (!opts.confirm) {
+      error("Deletion requires --confirm flag.");
+      process.exit(EXIT_ERROR);
+    }
+
+    const entry = await getLastEntry();
+    const global = await readGlobalConfig();
+
+    // If only one positional arg, it's the commentId and slug comes from config
+    let slug: string;
+    let commentId: string;
+    if (second === undefined) {
+      slug = resolveSlug(undefined, entry);
+      commentId = first;
+    } else {
+      slug = first;
+      commentId = second;
+    }
+
+    const apiKey = resolveApiKey(opts, entry, global);
+
+    const res = await api(`/docs/${slug}/comments/${commentId}`, {
+      method: "DELETE",
+      apiKey,
+    });
+
+    if (!res.ok) fail("Failed to delete comment", res.status, res.data);
+
+    if (opts.json) {
+      printJson(res.data);
+    } else {
+      success("Comment deleted.");
     }
   });
 
