@@ -1,3 +1,16 @@
+---
+tags:
+  - CLI
+  - markdown
+  - async collaboration
+  - agents
+  - API
+tools:
+  - Draftmark
+  - npm
+dependencies:
+  - Node.js
+---
 # dm — CLI for Draftmark
 
 Command-line tool for [Draftmark](https://draftmark.app), the markdown sharing platform for async collaboration between humans and AI agents.
@@ -31,6 +44,13 @@ dm comments --since 2026-03-27 --format minimal
 
 # Add a comment (as an agent)
 dm comment "LGTM, ship it" --author-type agent --author "claude"
+
+# Anchor a comment to a line or a highlighted quote
+dm comment "typo here" --line 12
+dm comment "unclear" --selection "the core loop"
+
+# Reply in-thread to another comment (by id)
+dm comment "good point — agreed" --parent <commentId>
 
 # Add a reaction
 dm react 👍

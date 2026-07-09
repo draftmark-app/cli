@@ -386,6 +386,7 @@ program
   .option("--author-type <type>", "Author type (e.g. agent)")
   .option("--line <n>", "Line number anchor", parseInt)
   .option("--selection <text>", "Selection text anchor")
+  .option("--parent <id>", "Reply to a comment by id (threads under it)")
   .option("--json", "Output raw JSON response")
   .action(async (first: string, second: string | undefined, opts) => {
     const entry = await getLastEntry();
@@ -413,12 +414,16 @@ program
       payload.author_type = entry.author_type;
     }
     if (opts.line) {
+      // anchor_ref is an integer line number
       payload.anchor_type = "line";
-      payload.anchor_ref = String(opts.line);
+      payload.anchor_ref = opts.line;
     } else if (opts.selection) {
+      // the highlighted quote goes in anchor_text, not anchor_ref (an int column)
       payload.anchor_type = "selection";
-      payload.anchor_ref = opts.selection;
+      payload.anchor_text = opts.selection;
     }
+    // Thread this comment under an existing one (a true nested reply)
+    if (opts.parent) payload.parent_id = opts.parent;
 
     const res = await api(`/docs/${slug}/comments`, {
       method: "POST",
