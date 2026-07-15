@@ -328,14 +328,20 @@ program
     const params: Record<string, string> = {};
     if (opts.status) params.status = opts.status;
 
-    const res = await api<Comment[]>(`/docs/${slug}/comments`, {
-      apiKey,
-      params,
-    });
+    const res = await api<{ comments?: Comment[] } | Comment[]>(
+      `/docs/${slug}/comments`,
+      { apiKey, params }
+    );
 
     if (!res.ok) fail("Failed to get comments", res.status, res.data);
 
-    let comments = res.data;
+    // The API wraps the list in an object ({ comments: [...] }); older servers
+    // returned a bare array. Tolerate both so `dm comments` never crashes on a
+    // non-iterable payload.
+    const payload = res.data;
+    let comments: Comment[] = Array.isArray(payload)
+      ? payload
+      : payload.comments ?? [];
 
     // --since: client-side date filter
     if (opts.since) {
