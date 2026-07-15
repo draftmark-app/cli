@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
-import { readFile } from "node:fs/promises";
+import { readFile, writeFile, mkdir, readdir } from "node:fs/promises";
+import { join, dirname } from "node:path";
 import { execSync } from "node:child_process";
 import { platform } from "node:os";
 import { Command } from "commander";
@@ -657,6 +658,80 @@ program
     }
 
     process.stdout.write(String(res.data));
+  });
+
+// ---------------------------------------------------------------------------
+// dm export <collection-slug>
+// ---------------------------------------------------------------------------
+type OkfManifest = {
+  okf_version: string;
+  bundle: string;
+  files: { path: string; content: string }[];
+};
+
+program
+  .command("export")
+  .description("Export a collection as an OKF bundle (writes the file tree to a directory)")
+  .argument("<slug>", "Collection slug")
+  .option("-o, --output <dir>", "Directory to write into (default: ./<slug>)")
+  .option("--api-key <key>", "Collection API key — owner export includes private docs")
+  .option("--token <token>", "Collection magic token — owner export includes private docs")
+  .option("--json", "Print the OKF manifest JSON instead of writing files")
+  .option("--force", "Overwrite a non-empty output directory")
+  .action(async (slug: string, opts) => {
+    // Collections aren't tracked in .draftmark.json (which is doc-scoped), so
+    // ownership credentials come from explicit flags. Without them the export is
+    // anonymous — public docs only, matching the API.
+    const res = await api<OkfManifest>(`/collections/${slug}`, {
+      params: { format: "okf" },
+      apiKey: opts.apiKey,
+      magicToken: opts.token,
+    });
+
+    if (!res.ok) fail("Failed to export collection", res.status, res.data);
+    const manifest = res.data;
+
+    if (opts.json) {
+      printJson(manifest);
+      return;
+    }
+
+    const outDir = opts.output || `./${slug}`;
+
+    // Refuse to clobber a non-empty directory unless --force.
+    if (!opts.force) {
+      try {
+        if ((await readdir(outDir)).length > 0) {
+          error(`Output directory ${outDir} is not empty. Use --force to overwrite.`);
+          process.exit(EXIT_ERROR);
+        }
+      } catch {
+        // ENOENT — the directory doesn't exist yet, which is what we want.
+      }
+    }
+
+    // Write the manifest files plus an okf.json sidecar (carrying okf_version),
+    // matching the layout of the server tarball (`/c/:slug.okf`).
+    const files = [
+      ...manifest.files,
+      {
+        path: "okf.json",
+        content:
+          JSON.stringify(
+            { okf_version: manifest.okf_version, bundle: manifest.bundle },
+            null,
+            2
+          ) + "\n",
+      },
+    ];
+
+    for (const file of files) {
+      const fullPath = join(outDir, file.path);
+      await mkdir(dirname(fullPath), { recursive: true });
+      await writeFile(fullPath, file.content);
+    }
+
+    success(`Exported ${files.length} files to ${outDir}/`);
   });
 
 // ---------------------------------------------------------------------------
