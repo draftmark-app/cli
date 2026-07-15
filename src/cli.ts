@@ -494,6 +494,50 @@ program
   });
 
 // ---------------------------------------------------------------------------
+// dm resolve [slug] <commentId>
+// ---------------------------------------------------------------------------
+program
+  .command("resolve")
+  .description("Mark a comment as resolved (use --dismiss to dismiss instead)")
+  .argument("[slug]", "Document slug (optional if .draftmark.json exists)")
+  .argument("<commentId>", "Comment id to resolve")
+  .option("--api-key <key>", "API key for authentication")
+  .option("--dismiss", "Mark as dismissed instead of resolved")
+  .option("--json", "Output raw JSON response")
+  .action(async (first: string, second: string | undefined, opts) => {
+    const entry = await getLastEntry();
+    const global = await readGlobalConfig();
+
+    // If only one positional arg, it's the commentId and slug comes from config
+    let slug: string;
+    let commentId: string;
+    if (second === undefined) {
+      slug = resolveSlug(undefined, entry);
+      commentId = first;
+    } else {
+      slug = first;
+      commentId = second;
+    }
+
+    const apiKey = resolveApiKey(opts, entry, global);
+    const status = opts.dismiss ? "dismissed" : "resolved";
+
+    const res = await api(`/docs/${slug}/comments/${commentId}`, {
+      method: "PATCH",
+      body: { status },
+      apiKey,
+    });
+
+    if (!res.ok) fail(`Failed to ${status === "dismissed" ? "dismiss" : "resolve"} comment`, res.status, res.data);
+
+    if (opts.json) {
+      printJson(res.data);
+    } else {
+      success(`Comment ${status}.`);
+    }
+  });
+
+// ---------------------------------------------------------------------------
 // dm review [slug]
 // ---------------------------------------------------------------------------
 program

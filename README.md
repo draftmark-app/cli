@@ -52,6 +52,10 @@ dm comment "unclear" --selection "the core loop"
 # Reply in-thread to another comment (by id)
 dm comment "good point — agreed" --parent <commentId>
 
+# Mark a comment done once you've addressed it (or dismiss it)
+dm resolve <commentId>
+dm resolve <commentId> --dismiss
+
 # Add a reaction
 dm react 👍
 
@@ -90,6 +94,7 @@ dm close
 | `dm comments [slug]` | List comments |
 | `dm comment [slug] <body>` | Add a comment (`--line`, `--selection`, `--parent`) |
 | `dm comment-delete [slug] <commentId>` | Delete a comment (requires `--confirm`) |
+| `dm resolve [slug] <commentId>` | Mark a comment resolved (`--dismiss` to dismiss instead) |
 | `dm react [slug] <emoji>` | Add a reaction |
 | `dm review [slug]` | Mark document as reviewed |
 
