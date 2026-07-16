@@ -70,6 +70,10 @@ dm raw | head -20
 
 # Close review when done
 dm close
+
+# Export a collection as an OKF bundle (writes ./<slug>/)
+dm export my-collection
+dm export my-collection -o ./bundle --token <collection-magic-token>
 ```
 
 ## Commands
@@ -86,6 +90,12 @@ dm close
 | `dm close [slug]` | Close document for review |
 | `dm open [slug]` | Re-open document for review |
 | `dm delete [slug]` | Delete document (requires `--confirm`) |
+
+### Collections
+
+| Command | Description |
+|---------|-------------|
+| `dm export <slug>` | Export a collection as an [OKF](https://github.com/GoogleCloudPlatform/knowledge-catalog/blob/main/okf/SPEC.md) bundle (`-o <dir>`, `--json`, `--force`) |
 
 ### Feedback
 
