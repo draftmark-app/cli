@@ -74,6 +74,9 @@ dm close
 # Export a collection as an OKF bundle (writes ./<slug>/)
 dm export my-collection
 dm export my-collection -o ./bundle --token <collection-magic-token>
+
+# Import an OKF bundle directory back into a new collection
+dm import ./bundle
 ```
 
 ## Commands
@@ -96,6 +99,7 @@ dm export my-collection -o ./bundle --token <collection-magic-token>
 | Command | Description |
 |---------|-------------|
 | `dm export <slug>` | Export a collection as an [OKF](https://github.com/GoogleCloudPlatform/knowledge-catalog/blob/main/okf/SPEC.md) bundle (`-o <dir>`, `--json`, `--force`) |
+| `dm import <dir>` | Import a local OKF bundle directory as a new collection (`--visibility`, `--api-key`, `--json`) |
 
 ### Feedback
 

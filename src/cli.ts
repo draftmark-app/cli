@@ -735,6 +735,75 @@ program
   });
 
 // ---------------------------------------------------------------------------
+// dm import <dir>
+// ---------------------------------------------------------------------------
+type OkfImportResponse = {
+  collection: { slug: string; title: string; url: string };
+  docs: { slug: string; title: string | null; label: string | null }[];
+};
+
+/** Recursively collect `.md` files under `root`, keyed by bundle-relative path. */
+async function collectMarkdownFiles(
+  root: string
+): Promise<{ path: string; content: string }[]> {
+  const out: { path: string; content: string }[] = [];
+  async function walk(current: string, prefix: string) {
+    const entries = await readdir(current, { withFileTypes: true });
+    for (const entry of entries) {
+      const full = join(current, entry.name);
+      const rel = prefix ? `${prefix}/${entry.name}` : entry.name;
+      if (entry.isDirectory()) await walk(full, rel);
+      else if (entry.name.toLowerCase().endsWith(".md")) {
+        out.push({ path: rel, content: await readFile(full, "utf-8") });
+      }
+    }
+  }
+  await walk(root, "");
+  return out;
+}
+
+program
+  .command("import")
+  .description("Import a local OKF bundle directory as a new collection")
+  .argument("<dir>", "Path to the bundle directory")
+  .option("--visibility <vis>", "public or private (private needs an account key)", "public")
+  .option("--api-key <key>", "Account API key (acct_...) to own the imported docs")
+  .option("--json", "Print the full JSON response (includes tokens)")
+  .action(async (dir: string, opts) => {
+    let files;
+    try {
+      files = await collectMarkdownFiles(dir);
+    } catch {
+      error(`Could not read directory: ${dir}`);
+      process.exit(EXIT_ERROR);
+    }
+    if (files.length === 0) {
+      error(`No .md files found under ${dir}`);
+      process.exit(EXIT_ERROR);
+    }
+
+    const res = await api<OkfImportResponse>(`/collections`, {
+      method: "POST",
+      params: { format: "okf" },
+      apiKey: opts.apiKey,
+      body: { files, visibility: opts.visibility },
+    });
+
+    if (!res.ok) fail("Failed to import bundle", res.status, res.data);
+
+    if (opts.json) {
+      printJson(res.data);
+      return;
+    }
+
+    const { collection, docs } = res.data;
+    success(`Imported ${docs.length} doc${docs.length === 1 ? "" : "s"} into "${collection.title}"`);
+    info(collection.url);
+    const rows = docs.map((d) => [d.slug, d.title ?? "", d.label ?? ""]);
+    process.stdout.write("\n" + formatTable(["Slug", "Title", "Label"], rows) + "\n");
+  });
+
+// ---------------------------------------------------------------------------
 // dm list
 // ---------------------------------------------------------------------------
 program
