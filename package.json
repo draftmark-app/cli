@@ -25,6 +25,7 @@
   ],
   "license": "MIT",
   "dependencies": {
+    "@draftmark-app/client": "^0.1.0",
     "commander": "^13.1.0"
   },
   "devDependencies": {
