@@ -1,3 +1,19 @@
+---
+tags:
+  - TypeScript
+  - CLI
+  - markdown
+  - REST API
+  - ESM modules
+projects:
+  - Draftmark
+  - Rumbo Labs
+tools:
+  - Commander.js
+  - npm
+  - GitHub Actions
+  - Node.js
+---
 # CLAUDE.md
 
 This file provides guidance to Claude Code when working with code in this repository.

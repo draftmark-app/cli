@@ -245,4 +245,4 @@ Full API reference: [draftmark.app/api-docs](https://draftmark.app/api-docs)
 
 ## License
 
-MIT
+MIT © [Rumbo Labs](https://rumbolabs.net)
